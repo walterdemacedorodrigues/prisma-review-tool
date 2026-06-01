@@ -17,11 +17,12 @@ import {
   Plus,
 } from "lucide-react";
 
-const SOURCES = ["arxiv", "openalex", "semantic_scholar", "scopus"] as const;
+const SOURCES = ["arxiv", "crossref", "openalex", "semantic_scholar", "scopus"] as const;
 
 const SOURCE_INFO: Record<string, { label: string; note: string; reliable: boolean }> = {
-  openalex: { label: "OpenAlex", note: "250M+ papers, most reliable", reliable: true },
   arxiv: { label: "arXiv", note: "Rate-limits aggressively, may return partial results", reliable: false },
+  crossref: { label: "Crossref", note: "150M+ records, free, no API key", reliable: true },
+  openalex: { label: "OpenAlex", note: "250M+ papers, most reliable", reliable: true },
   semantic_scholar: { label: "Semantic Scholar", note: "Heavy rate limits, often returns 0 results", reliable: false },
   scopus: { label: "Scopus", note: "Requires API key", reliable: true },
 };
