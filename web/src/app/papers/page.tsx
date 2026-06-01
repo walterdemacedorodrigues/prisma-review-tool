@@ -16,10 +16,11 @@ const decisionColor: Record<string, string> = {
 };
 
 const sourceColor: Record<string, string> = {
+  arxiv: "bg-accent-amber/15 text-accent-amber",
+  crossref: "bg-blue-500/15 text-blue-400",
   openalex: "bg-primary/15 text-primary",
   scopus: "bg-accent-green/15 text-accent-green",
-  arxiv: "bg-accent-purple/15 text-accent-purple",
-  semantic_scholar: "bg-accent-amber/15 text-accent-amber",
+  semantic_scholar: "bg-accent-purple/15 text-accent-purple",
 };
 
 export default function PapersPage() {
@@ -120,9 +121,10 @@ function PapersContent() {
         </select>
         <select value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }} className="glass-input text-sm">
           <option value="all">Source: All</option>
+          <option value="arxiv">arXiv</option>
+          <option value="crossref">Crossref</option>
           <option value="openalex">OpenAlex</option>
           <option value="scopus">Scopus</option>
-          <option value="arxiv">arXiv</option>
           <option value="semantic_scholar">Semantic Scholar</option>
         </select>
         <div data-tutorial="export-buttons" className="ml-auto flex gap-2">
@@ -160,7 +162,7 @@ function PapersContent() {
                     </Link>
                   </td>
                   <td className="px-5 py-3 text-text-secondary max-w-[200px] truncate">
-                    {paper.authors || "\u2014"}
+                    {paper.authors || "—"}
                   </td>
                   <td className="px-5 py-3 text-text-secondary">{paper.year}</td>
                   <td className="px-5 py-3">
