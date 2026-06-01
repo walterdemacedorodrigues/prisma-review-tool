@@ -13,10 +13,11 @@ from .models import Paper
 
 # Prefer sources with more complete metadata
 SOURCE_PRIORITY = {
-    "scopus": 0,
-    "openalex": 1,
-    "semantic_scholar": 2,
-    "arxiv": 3,
+    "crossref": 0,
+    "scopus": 1,
+    "openalex": 2,
+    "semantic_scholar": 3,
+    "arxiv": 4,
 }
 
 

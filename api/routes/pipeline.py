@@ -20,7 +20,7 @@ from api.session import SessionManager
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
-# ── Status / progress ────────────────────────────────────────────────
+# ── Status / progress ─────────────────────────────────────
 
 @router.get("/status")
 def pipeline_status(config: Config = Depends(get_config)):
@@ -34,7 +34,7 @@ def pipeline_progress(session: SessionManager = Depends(get_session_manager)):
     return session.get_progress()
 
 
-# ── Background execution ─────────────────────────────────────────────
+# ── Background execution ────────────────────────────────
 
 @router.post("/start")
 def start_pipeline(
@@ -71,7 +71,7 @@ def stop_pipeline(session: SessionManager = Depends(get_session_manager)):
     return {"status": "cancel_requested"}
 
 
-# ── Synchronous (legacy) endpoints ───────────────────────────────────
+# ── Synchronous (legacy) endpoints ────────────────────────
 
 @router.post("/search")
 def run_search(config: Config = Depends(get_config), lock=Depends(get_file_lock)):
@@ -81,9 +81,9 @@ def run_search(config: Config = Depends(get_config), lock=Depends(get_file_lock)
         all_papers = []
         source_counts = {}
         for key, papers in results.items():
-            source_name = key.split("_")[0]
-            source_counts[source_name] = source_counts.get(source_name, 0) + len(papers)
             all_papers.extend(papers)
+            for paper in papers:
+                source_counts[paper.source] = source_counts.get(paper.source, 0) + 1
 
         save_papers(all_papers, config.search_dir / "all_records.json")
 

@@ -84,7 +84,7 @@ class Config:
 
     @property
     def sources(self) -> list[str]:
-        return self._data.get("search", {}).get("sources", ["arxiv", "openalex", "semantic_scholar"])
+        return self._data.get("search", {}).get("sources", ["arxiv", "crossref", "openalex", "semantic_scholar"])
 
     @property
     def queries(self) -> list[dict]:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from ..config import Config
 from ..models import Paper
 from .arxiv_search import search_arxiv
+from .crossref_search import search_crossref
 from .openalex_search import search_openalex
 from .semantic_search import search_semantic_scholar
 from .scopus_search import search_scopus
@@ -30,6 +31,9 @@ def run_all_searches(config: Config) -> dict[str, list[Paper]]:
             try:
                 if source == "arxiv":
                     papers = search_arxiv(query_terms, config.date_start, config.date_end, config.max_results)
+                elif source == "crossref":
+                    papers = search_crossref(query_terms, config.date_start, config.date_end,
+                                             config.max_results, config.openalex_email)
                 elif source == "openalex":
                     papers = search_openalex(query_terms, config.date_start, config.date_end,
                                              config.max_results, config.openalex_email)
