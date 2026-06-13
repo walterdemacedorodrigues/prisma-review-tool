@@ -2,23 +2,22 @@
 
 from __future__ import annotations
 
-import re
 import time
 import requests
 from ..models import Paper
+from .query_plan import text_search_query
 
 API_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 FIELDS = "title,abstract,authors,externalIds,year,venue,publicationTypes"
 
 
 def _clean_query(query: str) -> str:
-    """Simplify boolean query for Semantic Scholar."""
-    phrases = re.findall(r'"([^"]+)"', query)
-    if phrases:
-        return " ".join(phrases[:5])
-    clean = re.sub(r'\b(AND|OR|NOT)\b', ' ', query)
-    clean = re.sub(r'[()"]', '', clean)
-    return ' '.join(clean.split())[:200]
+    """Reduce a Boolean query to Semantic Scholar's plain-text search string.
+
+    Delegates to the shared helper so the transparency warnings reported by
+    ``search.query_plan`` match exactly what is sent here.
+    """
+    return text_search_query(query)
 
 
 def search_semantic_scholar(query: str, date_start: str, date_end: str,

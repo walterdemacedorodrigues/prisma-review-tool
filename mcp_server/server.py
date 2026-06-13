@@ -52,6 +52,24 @@ def _get_session_manager() -> SessionManager:
     return _session_manager
 
 
+def _config_guard(config: Config, problems_key: str = "problems") -> str | None:
+    """Return a JSON error if the config isn't ready for the given scope, else None.
+
+    ``problems_key`` selects the relevant subset from ``Config.readiness()``:
+    "problems" (everything), "search_problems", or "screen_problems".
+    """
+    readiness = config.readiness()
+    problems = readiness.get(problems_key) or []
+    if problems:
+        return json.dumps({
+            "error": "Config not ready — your review configuration is still the template.",
+            "config_path": str(config.config_path or CONFIG_PATH),
+            "problems": problems,
+            "hint": "Inspect with get_review_config, fill in the config file, then retry.",
+        }, indent=2)
+    return None
+
+
 @mcp.tool()
 def get_screening_stats() -> str:
     """Get current screening statistics: total papers, how many included, excluded, maybe, and remaining to screen."""
@@ -68,6 +86,34 @@ def get_screening_stats() -> str:
         "screen": state.get("screen", {}),
     }
     return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def get_review_config() -> str:
+    """Inspect the review configuration this server will run (read-only).
+
+    Returns the config file path, project name, enabled sources, date window,
+    queries, and screening rules, plus `ready` (whether the config is filled in
+    or still the template) and `problems` listing anything left unconfigured.
+    Call this before start_pipeline to see exactly what will be searched.
+    """
+    config = _get_config()
+    readiness = config.readiness()
+    return json.dumps({
+        "config_path": str(config.config_path or CONFIG_PATH),
+        "project": config.project_name,
+        "sources": config.sources,
+        "date_range": {"start": config.date_start, "end": config.date_end},
+        "max_results_per_query": config.max_results,
+        "queries": config.queries,
+        "screening_rules": {
+            "include_keywords": config.include_keywords,
+            "exclude_keywords": config.exclude_keywords,
+            "min_include_hits": config.min_include_hits,
+        },
+        "ready": readiness["ready"],
+        "problems": readiness["problems"],
+    }, indent=2)
 
 
 @mcp.tool()
@@ -549,6 +595,11 @@ def start_pipeline() -> str:
     Use get_pipeline_progress() to monitor progress.
     """
     config = _get_config()
+
+    guard = _config_guard(config, "problems")
+    if guard is not None:
+        return guard
+
     session = _get_session_manager()
 
     if session.is_running:
@@ -593,6 +644,15 @@ def start_pipeline_step(step: str) -> str:
         return json.dumps({"error": f"Unknown step: {step}. Must be 'search', 'dedup', or 'screen'."})
 
     config = _get_config()
+
+    # Guard only the steps that consume config content: search needs queries,
+    # screen needs include keywords; dedup operates on prior output only.
+    guard_scope = {"search": "search_problems", "screen": "screen_problems"}.get(step)
+    if guard_scope is not None:
+        guard = _config_guard(config, guard_scope)
+        if guard is not None:
+            return guard
+
     session = _get_session_manager()
 
     if session.is_running:

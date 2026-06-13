@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 from ..models import Paper
+from .query_plan import text_search_query
 
 try:
     import pyalex
@@ -14,19 +14,12 @@ except ImportError:
 
 
 def _clean_query_for_openalex(query: str) -> str:
-    """Simplify boolean query for OpenAlex search.
+    """Reduce a Boolean query to OpenAlex's plain-text search string.
 
-    OpenAlex search endpoint is a simple text search, not full boolean.
-    Extract the key phrases and join them.
+    Delegates to the shared helper so the transparency warnings reported by
+    ``search.query_plan`` match exactly what is sent here.
     """
-    # Extract quoted phrases
-    phrases = re.findall(r'"([^"]+)"', query)
-    if phrases:
-        return " ".join(phrases[:5])  # Use top phrases, keep it focused
-    # Fallback: strip boolean operators
-    clean = re.sub(r'\b(AND|OR|NOT)\b', ' ', query)
-    clean = re.sub(r'[()"]', '', clean)
-    return ' '.join(clean.split())[:200]
+    return text_search_query(query)
 
 
 def search_openalex(query: str, date_start: str, date_end: str,
