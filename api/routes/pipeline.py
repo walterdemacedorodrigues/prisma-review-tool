@@ -29,9 +29,13 @@ def pipeline_status(config: Config = Depends(get_config)):
 
 
 @router.get("/progress")
-def pipeline_progress(session: SessionManager = Depends(get_session_manager)):
-    """Fast polling endpoint — returns in-memory progress, no disk I/O."""
-    return session.get_progress()
+def pipeline_progress(
+    config: Config = Depends(get_config),
+    session: SessionManager = Depends(get_session_manager),
+):
+    """Polling endpoint — in-memory progress reconciled with the active
+    project's state file, so MCP-driven runs are visible here too."""
+    return session.get_progress(config.state_file)
 
 
 # ── Background execution ────────────────────────────────
