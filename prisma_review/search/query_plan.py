@@ -1,10 +1,11 @@
 """Per-source query planning and transparency.
 
 Different search backends honour different parts of a Boolean query: Scopus
-runs the full Boolean expression (``TITLE-ABS-KEY``), arXiv honours AND/OR
-natively, while the plain-text APIs (OpenAlex, Crossref, Semantic Scholar)
-collapse the query to a handful of phrases and silently drop OR/NOT and ``*``
-truncation.
+runs the full Boolean expression (``TITLE-ABS-KEY``), arXiv and OpenAlex honour
+AND/OR/NOT and quoted phrases natively (OpenAlex's ``search`` parameter has
+supported Boolean queries since 2023), while the remaining plain-text APIs
+(Crossref, Semantic Scholar) collapse the query to a handful of phrases and
+silently drop OR/NOT and ``*`` truncation.
 
 To avoid silent surprises, :func:`query_warnings` reports, per source, which
 operators a query loses and what string is actually executed. Those warnings
@@ -23,7 +24,7 @@ _OR_NOT_RE = re.compile(r'\b(OR|NOT)\b')
 _BOOL_RE = re.compile(r'\b(AND|OR|NOT)\b')
 
 # Sources whose API is plain-text relevance search, not Boolean.
-TEXT_SEARCH_SOURCES = ("openalex", "crossref", "semantic_scholar")
+TEXT_SEARCH_SOURCES = ("crossref", "semantic_scholar")
 _MAX_PHRASES = 5
 
 
@@ -80,8 +81,9 @@ def plan_query(source: str, query_name: str, query: str) -> QueryPlan:
             warnings.append(f'{label}: actually searched -> "{effective}"')
         return QueryPlan(source, query_name, query, effective, warnings)
 
-    if source == "arxiv":
-        # arXiv honours AND/OR and quoted phrases natively; only '*' is unsupported.
+    if source in ("arxiv", "openalex"):
+        # arXiv and OpenAlex honour AND/OR/NOT and quoted phrases natively;
+        # only '*' truncation is unsupported.
         warnings = []
         if "*" in query:
             warnings.append(
