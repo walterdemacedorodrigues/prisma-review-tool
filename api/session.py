@@ -67,10 +67,17 @@ class SessionManager:
     def is_running(self) -> bool:
         return self.status == "running"
 
-    def get_progress(self) -> dict:
-        """Return a snapshot of the current progress — fast, no I/O."""
+    def get_progress(self, state_file: Path | None = None) -> dict:
+        """Return a snapshot of the current pipeline progress.
+
+        Reconciles in-memory state with ``review_state.json`` so a pipeline
+        driven by another process (notably the MCP server, which shares the
+        same state file) is visible here. The in-memory snapshot wins only
+        while *this* process owns a running pipeline; otherwise the disk state
+        wins when it reflects more recent activity.
+        """
         with self._lock:
-            return {
+            local = {
                 "session_id": self.session_id,
                 "status": self.status,
                 "current_step": self.current_step,
@@ -82,6 +89,46 @@ class SessionManager:
                 "error": self.error,
                 "result": self.result,
             }
+
+        # We own an active run — our memory is the freshest source.
+        if local["status"] == "running":
+            return local
+
+        disk = self._read_disk_progress(state_file or self._state_file)
+        if disk is None:
+            return local
+
+        # Prefer disk when it reflects a run at least as recent as ours
+        # (another process started/finished it after our last local activity).
+        local_started = local["started_at"]
+        disk_started = disk["started_at"]
+        if disk_started and (local_started is None or disk_started >= local_started):
+            return disk
+        return local
+
+    @staticmethod
+    def _read_disk_progress(state_file: Path | None) -> dict | None:
+        """Read the persisted ``pipeline`` block, shaped like get_progress()."""
+        if state_file is None:
+            return None
+        try:
+            ps = load_state(state_file).get("pipeline")
+        except Exception:
+            return None
+        if not ps or not isinstance(ps, dict):
+            return None
+        return {
+            "session_id": ps.get("session_id"),
+            "status": ps.get("status", "idle"),
+            "current_step": ps.get("current_step"),
+            "progress_message": ps.get("progress_message"),
+            "started_at": ps.get("started_at"),
+            "finished_at": ps.get("finished_at"),
+            "completed_steps": ps.get("completed_steps", []),
+            "warnings": ps.get("warnings", []),
+            "error": ps.get("error"),
+            "result": ps.get("result"),
+        }
 
     def request_cancel(self) -> bool:
         """Set the cancellation flag.  Returns False if nothing is running."""
