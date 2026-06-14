@@ -11,7 +11,7 @@ from .config import Config
 from .models import Paper, save_papers, load_papers
 from .search.runner import run_all_searches
 from .dedup import deduplicate, save_dedup_log
-from .screen import screen_by_rules, get_by_decision
+from .screen import screen_by_rules, get_by_decision, count_excluded_by_required
 from .export import export_bibtex, export_csv
 from .download import download_papers
 from .diagram import generate_markdown_diagram, generate_png_diagram, save_state, load_state
@@ -78,11 +78,13 @@ def cmd_screen_rules(config: Config) -> None:
         return
 
     print(f"[SCREEN] Screening {len(papers)} papers with keyword rules...")
-    papers = screen_by_rules(papers, config.include_keywords, config.exclude_keywords, config.min_include_hits)
+    papers = screen_by_rules(papers, config.include_keywords, config.exclude_keywords,
+                             config.min_include_hits, config.required_keywords)
 
     included = get_by_decision(papers, "include")
     excluded = get_by_decision(papers, "exclude")
     maybe = get_by_decision(papers, "maybe")
+    excluded_no_required = count_excluded_by_required(excluded)
 
     save_papers(papers, config.screen_dir / "screen_results.json")
     save_papers(included, config.screen_dir / "included.json")
@@ -95,12 +97,15 @@ def cmd_screen_rules(config: Config) -> None:
         "included": len(included),
         "excluded": len(excluded),
         "maybe": len(maybe),
+        "excluded_no_required_keyword": excluded_no_required,
     }
     save_state(state, config.state_file)
 
     print(f"[SCREEN] Done!")
     print(f"  Included: {len(included)}")
     print(f"  Excluded: {len(excluded)}")
+    if excluded_no_required:
+        print(f"    (of which {excluded_no_required} by required-keyword rule)")
     print(f"  Maybe (needs review): {len(maybe)}")
 
 

@@ -173,6 +173,14 @@ class Config:
     def min_include_hits(self) -> int:
         return self._data.get("screening", {}).get("rules", {}).get("min_include_hits", 2)
 
+    @property
+    def required_keywords(self) -> list[str]:
+        """Optional gate: a paper must contain >=1 of these to pass screening.
+
+        Empty/absent (the default) disables the gate — fully backward compatible.
+        """
+        return self._data.get("screening", {}).get("rules", {}).get("required_keywords", [])
+
     # Readiness
     def readiness(self) -> dict:
         """Report whether the config is filled in or still the template.
