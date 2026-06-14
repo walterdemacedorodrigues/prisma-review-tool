@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ..models import Paper
-from .query_plan import text_search_query
 
 try:
     import pyalex
@@ -19,15 +18,6 @@ import functools
 print = functools.partial(print, file=sys.stderr)
 
 
-def _clean_query_for_openalex(query: str) -> str:
-    """Reduce a Boolean query to OpenAlex's plain-text search string.
-
-    Delegates to the shared helper so the transparency warnings reported by
-    ``search.query_plan`` match exactly what is sent here.
-    """
-    return text_search_query(query)
-
-
 def search_openalex(query: str, date_start: str, date_end: str,
                      max_results: int = 500, email: str = "") -> list[Paper]:
     """Search OpenAlex and return normalized Paper objects."""
@@ -38,7 +28,9 @@ def search_openalex(query: str, date_start: str, date_end: str,
     if email:
         pyalex.config.email = email
 
-    search_text = _clean_query_for_openalex(query)
+    # OpenAlex's `search` parameter honours Boolean operators (AND/OR/NOT),
+    # quoted phrases and parentheses natively, so send the raw query through.
+    search_text = query
     start_year = int(date_start[:4])
     end_year = int(date_end[:4])
 
