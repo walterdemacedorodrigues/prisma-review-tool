@@ -12,6 +12,12 @@ try:
 except ImportError:
     HAS_PYALEX = False
 
+# Progress output must go to stderr: this module is imported by the stdio MCP
+# server, where stdout is the JSON-RPC channel and any stray byte corrupts it.
+import sys
+import functools
+print = functools.partial(print, file=sys.stderr)
+
 
 def _clean_query_for_openalex(query: str) -> str:
     """Reduce a Boolean query to OpenAlex's plain-text search string.

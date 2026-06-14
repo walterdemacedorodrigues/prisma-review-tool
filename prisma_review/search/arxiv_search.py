@@ -6,6 +6,12 @@ import re
 import arxiv
 from ..models import Paper
 
+# Progress output must go to stderr: this module is imported by the stdio MCP
+# server, where stdout is the JSON-RPC channel and any stray byte corrupts it.
+import sys
+import functools
+print = functools.partial(print, file=sys.stderr)
+
 
 def _translate_query(query: str) -> str:
     """Translate boolean query to arXiv API format.
