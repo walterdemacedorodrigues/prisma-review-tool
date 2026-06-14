@@ -10,6 +10,12 @@ from .openalex_search import search_openalex
 from .semantic_search import search_semantic_scholar
 from .scopus_search import search_scopus
 
+# Progress output must go to stderr: this module is imported by the stdio MCP
+# server, where stdout is the JSON-RPC channel and any stray byte corrupts it.
+import sys
+import functools
+print = functools.partial(print, file=sys.stderr)
+
 
 def run_all_searches(config: Config) -> dict[str, list[Paper]]:
     """Run search queries across all enabled sources. Returns dict keyed by source name."""

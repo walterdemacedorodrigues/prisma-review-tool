@@ -8,6 +8,12 @@ import requests
 from ..models import Paper
 from .query_plan import text_search_query
 
+# Progress output must go to stderr: this module is imported by the stdio MCP
+# server, where stdout is the JSON-RPC channel and any stray byte corrupts it.
+import sys
+import functools
+print = functools.partial(print, file=sys.stderr)
+
 API_URL = "https://api.crossref.org/works"
 
 
