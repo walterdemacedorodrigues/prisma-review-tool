@@ -67,15 +67,30 @@ def get_stats(config: Config = Depends(get_config)):
 
 # ── Browse all papers (paginated) ─────────────────────────────────────────────
 
+_SORT_KEYS = {
+    "title": lambda p: (p.title or "").lower(),
+    "authors": lambda p: (p.authors[0].lower() if p.authors else ""),
+    "year": lambda p: p.year or 0,
+    "source": lambda p: (p.source or "").lower(),
+    "decision": lambda p: (p.screen_decision or "").lower(),
+}
+
+
 @router.get("/papers")
 def list_all_papers(
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=1000),
     decision: str = Query("all"),
     source: str = Query("all"),
+    sort: str = Query("", pattern="^(|title|authors|year|source|decision)$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
     config: Config = Depends(get_config),
 ):
     papers = _load_filtered_papers(config, decision, source)
+
+    if sort:
+        papers = sorted(papers, key=_SORT_KEYS[sort], reverse=(order == "desc"))
+
     total = len(papers)
     start = (page - 1) * per_page
     end = start + per_page
