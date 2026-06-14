@@ -15,7 +15,7 @@ from prisma_review.models import load_papers, save_papers
 from prisma_review.search.runner import run_all_searches
 from prisma_review.search.query_plan import query_warnings
 from prisma_review.dedup import deduplicate, save_dedup_log
-from prisma_review.screen import screen_by_rules, get_by_decision
+from prisma_review.screen import screen_by_rules, get_by_decision, count_excluded_by_required
 from prisma_review.diagram import load_state, save_state
 
 
@@ -373,10 +373,12 @@ class SessionManager:
             raise RuntimeError("No papers found. Run dedup first.")
 
         # Run computation without lock, only lock for saves
-        papers = screen_by_rules(papers, config.include_keywords, config.exclude_keywords, config.min_include_hits)
+        papers = screen_by_rules(papers, config.include_keywords, config.exclude_keywords,
+                                 config.min_include_hits, config.required_keywords)
         included = get_by_decision(papers, "include")
         excluded = get_by_decision(papers, "exclude")
         maybe = get_by_decision(papers, "maybe")
+        excluded_no_required = count_excluded_by_required(excluded)
 
         with self._file_lock:
             save_papers(papers, config.screen_dir / "screen_results.json")
@@ -401,6 +403,7 @@ class SessionManager:
                 "included": len(included),
                 "excluded": len(excluded),
                 "maybe": len(maybe),
+                "excluded_no_required_keyword": excluded_no_required,
             }
             # Reset eligibility state since included papers changed
             state.pop("eligibility", None)

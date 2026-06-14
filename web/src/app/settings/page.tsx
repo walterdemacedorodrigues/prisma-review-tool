@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState<any>(null);
   const [includeInput, setIncludeInput] = useState("");
   const [excludeInput, setExcludeInput] = useState("");
+  const [requiredInput, setRequiredInput] = useState("");
 
   useEffect(() => {
     if (config && !form) {
@@ -69,7 +70,7 @@ export default function SettingsPage() {
     });
   };
 
-  const addKeyword = (type: "include_keywords" | "exclude_keywords", value: string) => {
+  const addKeyword = (type: "include_keywords" | "exclude_keywords" | "required_keywords", value: string) => {
     if (!value.trim()) return;
     setForm((prev: any) => {
       const next = structuredClone(prev);
@@ -84,7 +85,7 @@ export default function SettingsPage() {
     });
   };
 
-  const removeKeyword = (type: "include_keywords" | "exclude_keywords", index: number) => {
+  const removeKeyword = (type: "include_keywords" | "exclude_keywords" | "required_keywords", index: number) => {
     setForm((prev: any) => {
       const next = structuredClone(prev);
       next.screening.rules[type].splice(index, 1);
@@ -335,7 +336,7 @@ export default function SettingsPage() {
               <p className="font-semibold text-text-primary">How screening works</p>
               <ul className="text-text-secondary space-y-1.5 list-none">
                 <li><span className="text-accent-green font-semibold">Include</span> — paper matches ≥ minimum threshold of include keywords AND 0 exclude keywords</li>
-                <li><span className="text-accent-red font-semibold">Exclude</span> — paper matches any exclude keyword</li>
+                <li><span className="text-accent-red font-semibold">Exclude</span> — paper matches any exclude keyword, OR (if required keywords are set) matches none of them</li>
                 <li><span className="text-accent-amber font-semibold">Maybe</span> — not enough include keywords, no exclude match</li>
               </ul>
               <p className="text-text-muted pt-1 border-t border-border-glass">Example: with threshold=4 and 12 include keywords, a paper must mention at least 4 of them in title+abstract to be included.</p>
@@ -429,6 +430,63 @@ export default function SettingsPage() {
                 setExcludeInput("");
               }}
               className="flex items-center gap-1 px-3 py-2 rounded-lg border border-border-glass text-accent-red hover:border-accent-red/30"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Required Keywords */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm text-text-secondary">Required Keywords</label>
+            <div className="relative group">
+              <button className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-bold">
+                i
+              </button>
+              <div className="absolute left-0 bottom-7 w-80 glass-elevated p-3 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible z-50 text-xs space-y-1.5 shadow-xl">
+                <p className="text-text-primary font-medium">Optional gate. If any are set, a paper is auto-excluded unless it contains at least one of these terms in its title/abstract.</p>
+                <p className="text-text-muted">Leave empty to disable (default). Matching is substring + case-insensitive — list distinct forms of a concept separately.</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {(form?.screening?.rules?.required_keywords ?? []).map((kw: string, i: number) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-accent-amber/15 text-accent-amber border border-accent-amber/20"
+              >
+                {kw}
+                <button
+                  onClick={() => removeKeyword("required_keywords", i)}
+                  className="hover:text-text-primary"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2 max-w-md">
+            <input
+              type="text"
+              value={requiredInput}
+              onChange={(e) => setRequiredInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addKeyword("required_keywords", requiredInput);
+                  setRequiredInput("");
+                }
+              }}
+              className="glass-input flex-1"
+              placeholder='e.g. "wireless", "network"'
+            />
+            <button
+              onClick={() => {
+                addKeyword("required_keywords", requiredInput);
+                setRequiredInput("");
+              }}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-border-glass text-accent-amber hover:border-accent-amber/30"
             >
               <Plus className="w-4 h-4" />
             </button>

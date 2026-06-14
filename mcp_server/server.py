@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from prisma_review.config import Config
 from prisma_review.models import Paper, save_papers, load_papers
-from prisma_review.screen import get_by_decision, screen_by_rules
+from prisma_review.screen import get_by_decision, screen_by_rules, count_excluded_by_required
 from prisma_review.export import export_bibtex, export_csv
 from prisma_review.download import download_papers
 from prisma_review.diagram import (
@@ -154,6 +154,7 @@ def get_review_config() -> str:
             "include_keywords": config.include_keywords,
             "exclude_keywords": config.exclude_keywords,
             "min_include_hits": config.min_include_hits,
+            "required_keywords": config.required_keywords,
         },
         "ready": readiness["ready"],
         "problems": readiness["problems"],
@@ -641,6 +642,7 @@ def set_review_config(
     include_keywords: list[str] | None = None,
     exclude_keywords: list[str] | None = None,
     min_include_hits: int | None = None,
+    required_keywords: list[str] | None = None,
 ) -> str:
     """Write the review configuration (the active project's config.yaml).
 
@@ -662,6 +664,9 @@ def set_review_config(
         include_keywords: Screening include keywords.
         exclude_keywords: Screening exclude keywords.
         min_include_hits: How many include keywords must match to include a paper.
+        required_keywords: Optional gate. If non-empty, a paper is auto-excluded
+            unless it contains at least one of these terms in its title/abstract.
+            Empty list disables the gate (default). Substring, case-insensitive.
 
     Returns the resolved config path and the new readiness (ready/problems).
     """
@@ -706,6 +711,8 @@ def set_review_config(
         data["screening"]["rules"]["exclude_keywords"] = exclude_keywords
     if min_include_hits is not None:
         data["screening"]["rules"]["min_include_hits"] = min_include_hits
+    if required_keywords is not None:
+        data["screening"]["rules"]["required_keywords"] = required_keywords
 
     _save_raw_config(path, data)
 
@@ -818,7 +825,8 @@ def create_project(name: str, switch: bool = True) -> str:
             "search": {"date_range": {"start": "2015-01-01", "end": "2026-12-31"},
                        "max_results_per_query": 500, "sources": ["openalex"], "queries": []},
             "dedup": {"doi_match": True, "fuzzy_title_threshold": 90},
-            "screening": {"rules": {"include_keywords": [], "exclude_keywords": [], "min_include_hits": 2}},
+            "screening": {"rules": {"include_keywords": [], "exclude_keywords": [],
+                                    "min_include_hits": 2, "required_keywords": []}},
         }
     cfg.setdefault("project", {})
     cfg["project"]["name"] = name
@@ -862,10 +870,12 @@ def rescreen(min_include_hits: int) -> str:
             p.screen_reason = None
             p.screen_method = None
 
-    papers = screen_by_rules(papers, config.include_keywords, config.exclude_keywords, min_include_hits)
+    papers = screen_by_rules(papers, config.include_keywords, config.exclude_keywords,
+                             min_include_hits, config.required_keywords)
     included = get_by_decision(papers, "include")
     excluded = get_by_decision(papers, "exclude")
     maybe = get_by_decision(papers, "maybe")
+    excluded_no_required = count_excluded_by_required(excluded)
 
     with _file_lock:
         save_papers(papers, config.screen_dir / "screen_results.json")
@@ -879,6 +889,7 @@ def rescreen(min_include_hits: int) -> str:
             "included": len(included),
             "excluded": len(excluded),
             "maybe": len(maybe),
+            "excluded_no_required_keyword": excluded_no_required,
         }
         save_state(state, config.state_file)
 
@@ -888,6 +899,7 @@ def rescreen(min_include_hits: int) -> str:
         "included": len(included),
         "excluded": len(excluded),
         "maybe": len(maybe),
+        "excluded_no_required_keyword": excluded_no_required,
     }, indent=2)
 
 
