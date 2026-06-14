@@ -38,8 +38,18 @@ export const eligibilityScreen = (id: string, decision: string, reason: string) 
   });
 
 // Browse all papers (paginated)
-export const fetchAllPapers = (page = 1, perPage = 20, decision = "all", source = "all") =>
-  request<PaginatedPapersResponse>(`/api/papers?page=${page}&per_page=${perPage}&decision=${decision}&source=${source}`);
+export const fetchAllPapers = (
+  page = 1,
+  perPage = 20,
+  decision = "all",
+  source = "all",
+  sort = "",
+  order: "asc" | "desc" = "asc",
+) =>
+  request<PaginatedPapersResponse>(
+    `/api/papers?page=${page}&per_page=${perPage}&decision=${decision}&source=${source}` +
+      (sort ? `&sort=${sort}&order=${order}` : ""),
+  );
 
 // Re-screen with different threshold
 export const rescreenPapers = (minIncludeHits: number) =>
