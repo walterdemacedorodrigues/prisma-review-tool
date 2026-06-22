@@ -151,6 +151,26 @@ class Config:
     def queries(self) -> list[dict]:
         return self._data.get("search", {}).get("queries", [])
 
+    # Source-side filters (optional; all empty/false disables filtering).
+    def _filters(self) -> dict:
+        return self._data.get("search", {}).get("filters", {}) or {}
+
+    @property
+    def filter_document_types(self) -> list[str]:
+        return [t for t in (self._filters().get("document_types") or []) if str(t).strip()]
+
+    @property
+    def filter_require_abstract(self) -> bool:
+        return bool(self._filters().get("require_abstract", False))
+
+    @property
+    def filter_open_access(self) -> bool:
+        return bool(self._filters().get("open_access", False))
+
+    @property
+    def filter_venues(self) -> list[str]:
+        return [v for v in (self._filters().get("venues") or []) if str(v).strip()]
+
     # Dedup config
     @property
     def doi_match(self) -> bool:
