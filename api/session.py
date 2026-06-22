@@ -14,6 +14,7 @@ from prisma_review.config import Config
 from prisma_review.models import load_papers, save_papers
 from prisma_review.search.runner import run_all_searches
 from prisma_review.search.query_plan import query_warnings
+from prisma_review.search.filters import filter_warnings
 from prisma_review.dedup import deduplicate, save_dedup_log
 from prisma_review.screen import screen_by_rules, get_by_decision, count_excluded_by_required
 from prisma_review.diagram import load_state, save_state
@@ -313,7 +314,7 @@ class SessionManager:
     def _run_search(self, config: Config) -> dict:
         # Per-source query transparency: report operators each source drops
         # (OR/NOT/wildcards/extra phrases) before the search runs.
-        for w in query_warnings(config):
+        for w in list(query_warnings(config)) + list(filter_warnings(config)):
             with self._lock:
                 self.warnings.append(w)
 

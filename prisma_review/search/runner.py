@@ -9,6 +9,7 @@ from .crossref_search import search_crossref
 from .openalex_search import search_openalex
 from .semantic_search import search_semantic_scholar
 from .scopus_search import search_scopus
+from .filters import SearchFilters
 
 # Progress output must go to stderr: this module is imported by the stdio MCP
 # server, where stdout is the JSON-RPC channel and any stray byte corrupts it.
@@ -20,6 +21,7 @@ print = functools.partial(print, file=sys.stderr)
 def run_all_searches(config: Config) -> dict[str, list[Paper]]:
     """Run search queries across all enabled sources. Returns dict keyed by source name."""
     results: dict[str, list[Paper]] = {}
+    filters = SearchFilters.from_config(config)
 
     for query_def in config.queries:
         query_name = query_def.get("name", "unnamed")
@@ -36,18 +38,21 @@ def run_all_searches(config: Config) -> dict[str, list[Paper]]:
 
             try:
                 if source == "arxiv":
-                    papers = search_arxiv(query_terms, config.date_start, config.date_end, config.max_results)
+                    papers = search_arxiv(query_terms, config.date_start, config.date_end,
+                                          config.max_results, filters)
                 elif source == "crossref":
                     papers = search_crossref(query_terms, config.date_start, config.date_end,
-                                             config.max_results, config.openalex_email)
+                                             config.max_results, config.openalex_email, filters)
                 elif source == "openalex":
                     papers = search_openalex(query_terms, config.date_start, config.date_end,
-                                             config.max_results, config.openalex_email)
+                                             config.max_results, config.openalex_email, filters)
                 elif source == "semantic_scholar":
-                    papers = search_semantic_scholar(query_terms, config.date_start, config.date_end, config.max_results)
+                    papers = search_semantic_scholar(query_terms, config.date_start, config.date_end,
+                                                     config.max_results, filters)
                 elif source == "scopus":
                     papers = search_scopus(query_terms, config.scopus_key,
-                                           config.date_start, config.date_end, config.max_results)
+                                           config.date_start, config.date_end,
+                                           config.max_results, filters)
                 else:
                     print(f"unknown source, skipping")
                     continue

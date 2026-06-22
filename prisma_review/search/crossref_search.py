@@ -7,6 +7,7 @@ import time
 import requests
 from ..models import Paper
 from .query_plan import text_search_query
+from .filters import SearchFilters, build_crossref_filter, apply_post_filters
 
 # Progress output must go to stderr: this module is imported by the stdio MCP
 # server, where stdout is the JSON-RPC channel and any stray byte corrupts it.
@@ -27,11 +28,21 @@ def _clean_query(query: str) -> str:
 
 
 def search_crossref(query: str, date_start: str, date_end: str,
-                    max_results: int = 500, email: str = "") -> list[Paper]:
+                    max_results: int = 500, email: str = "",
+                    filters: SearchFilters | None = None) -> list[Paper]:
 	"""Search Crossref and return normalized Paper objects."""
 	search_text = _clean_query(query)
 	start_year = int(date_start[:4])
 	end_year = int(date_end[:4])
+
+	# Request channel: date is always filtered; append supported facets to the
+	# same structured `filter` string (Crossref honours these even though it
+	# ignores the Boolean query).
+	filter_str = f"from-pub-date:{date_start},until-pub-date:{date_end}"
+	if filters:
+		extra = build_crossref_filter(filters)
+		if extra:
+			filter_str += "," + extra
 
 	papers = []
 	cursor = "*"
@@ -41,7 +52,7 @@ def search_crossref(query: str, date_start: str, date_end: str,
 		while count < max_results and cursor:
 			params = {
 				"query": search_text,
-				"filter": f"from-pub-date:{date_start},until-pub-date:{date_end}",
+				"filter": filter_str,
 				"rows": min(100, max_results - count),
 				"cursor": cursor,
 			}
@@ -100,6 +111,9 @@ def search_crossref(query: str, date_start: str, date_end: str,
 
 				keywords = item.get("subject", [])
 
+				issn_list = item.get("ISSN", [])
+				issn = issn_list[0] if issn_list else None
+
 				paper = Paper(
 					title=title.strip(),
 					authors=authors,
@@ -111,6 +125,8 @@ def search_crossref(query: str, date_start: str, date_end: str,
 					keywords=keywords,
 					source="crossref",
 					source_id=doi if doi else "",
+					type=item.get("type"),
+					issn=issn,
 				)
 				papers.append(paper)
 				count += 1
@@ -119,5 +135,9 @@ def search_crossref(query: str, date_start: str, date_end: str,
 
 	except Exception as e:
 		print(f"  [!] Crossref search error: {e}")
+
+	# Post-request safety net (e.g. open_access, which Crossref can't filter).
+	if filters:
+		papers = apply_post_filters(papers, filters, "crossref")
 
 	return papers

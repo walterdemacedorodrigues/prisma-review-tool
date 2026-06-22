@@ -24,6 +24,7 @@ from prisma_review.config import Config
 from prisma_review.models import Paper, save_papers, load_papers
 from prisma_review.screen import get_by_decision, screen_by_rules, count_excluded_by_required
 from prisma_review.export import export_bibtex, export_csv
+from prisma_review.search.filters import filter_warnings
 from prisma_review.download import download_papers
 from prisma_review.diagram import (
     generate_markdown_diagram, generate_png_diagram,
@@ -137,9 +138,12 @@ def get_review_config() -> str:
     """Inspect the review configuration this server will run (read-only).
 
     Returns the config file path, project name, enabled sources, date window,
-    queries, and screening rules, plus `ready` (whether the config is filled in
-    or still the template) and `problems` listing anything left unconfigured.
-    Call this before start_pipeline to see exactly what will be searched.
+    queries, screening rules, and source-side `filters`, plus `ready` (whether
+    the config is filled in or still the template) and `problems` listing
+    anything left unconfigured. The `filter_warnings` list reports, per source,
+    any configured filter that is applied locally after fetch (not server-side)
+    or unsupported and ignored — inspect it before start_pipeline. Use
+    set_review_config to change the filters.
     """
     config = _get_config()
     readiness = config.readiness()
@@ -156,6 +160,13 @@ def get_review_config() -> str:
             "min_include_hits": config.min_include_hits,
             "required_keywords": config.required_keywords,
         },
+        "filters": {
+            "document_types": config.filter_document_types,
+            "require_abstract": config.filter_require_abstract,
+            "open_access": config.filter_open_access,
+            "venues": config.filter_venues,
+        },
+        "filter_warnings": filter_warnings(config),
         "ready": readiness["ready"],
         "problems": readiness["problems"],
     }, indent=2)
@@ -643,6 +654,10 @@ def set_review_config(
     exclude_keywords: list[str] | None = None,
     min_include_hits: int | None = None,
     required_keywords: list[str] | None = None,
+    document_types: list[str] | None = None,
+    require_abstract: bool | None = None,
+    open_access: bool | None = None,
+    venues: list[str] | None = None,
 ) -> str:
     """Write the review configuration (the active project's config.yaml).
 
@@ -667,8 +682,29 @@ def set_review_config(
         required_keywords: Optional gate. If non-empty, a paper is auto-excluded
             unless it contains at least one of these terms in its title/abstract.
             Empty list disables the gate (default). Substring, case-insensitive.
+        document_types: Source-side filter — restrict to these document types.
+            Canonical values: "journal-article", "review", "conference-paper",
+            "book-chapter", "preprint". Applied server-side where the source
+            supports it (e.g. OpenAlex type, Crossref type:journal-article,
+            Scopus DOCTYPE), and locally otherwise. Empty = no restriction.
+            Not every type exists in every source (e.g. arXiv is preprint-only,
+            Crossref has no "review") — call get_review_config afterwards and
+            read `filter_warnings` to see what is dropped or applied locally.
+        require_abstract: If true, drop records with no abstract (needed for
+            keyword screening). Server-side on OpenAlex/Crossref; applied locally
+            on the others.
+        open_access: If true, keep only open-access records. Server-side on
+            OpenAlex/Semantic Scholar/Scopus; applied locally on Crossref (it is
+            not an open-access index). arXiv is open access by nature.
+        venues: Restrict to these venues — give ISSNs ("1234-567X") and/or
+            journal names. ISSNs filter server-side on OpenAlex/Crossref/Scopus;
+            names match the venue field (locally on most sources). See
+            `filter_warnings` for which apply where.
 
     Returns the resolved config path and the new readiness (ready/problems).
+    NOTE: filters are applied at request when the source supports the facet and
+    re-checked after fetch as a safety net; check `filter_warnings` from
+    get_review_config to see per-source behaviour.
     """
     path = _resolve_config_path()
     if not path.exists():
@@ -692,6 +728,7 @@ def set_review_config(
     data.setdefault("project", {})
     data.setdefault("search", {})
     data["search"].setdefault("date_range", {})
+    data["search"].setdefault("filters", {})
     data.setdefault("screening", {})
     data["screening"].setdefault("rules", {})
 
@@ -713,6 +750,14 @@ def set_review_config(
         data["screening"]["rules"]["min_include_hits"] = min_include_hits
     if required_keywords is not None:
         data["screening"]["rules"]["required_keywords"] = required_keywords
+    if document_types is not None:
+        data["search"]["filters"]["document_types"] = document_types
+    if require_abstract is not None:
+        data["search"]["filters"]["require_abstract"] = require_abstract
+    if open_access is not None:
+        data["search"]["filters"]["open_access"] = open_access
+    if venues is not None:
+        data["search"]["filters"]["venues"] = venues
 
     _save_raw_config(path, data)
 
@@ -723,6 +768,7 @@ def set_review_config(
         "config_path": str(path),
         "ready": readiness["ready"],
         "problems": readiness["problems"],
+        "filter_warnings": filter_warnings(config),
         "note": "If the web app is running, it may need a refresh/switch to reload this config.",
     }, indent=2)
 

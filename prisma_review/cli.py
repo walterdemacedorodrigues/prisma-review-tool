@@ -10,6 +10,8 @@ from pathlib import Path
 from .config import Config
 from .models import Paper, save_papers, load_papers
 from .search.runner import run_all_searches
+from .search.query_plan import query_warnings
+from .search.filters import filter_warnings
 from .dedup import deduplicate, save_dedup_log
 from .screen import screen_by_rules, get_by_decision, count_excluded_by_required
 from .export import export_bibtex, export_csv
@@ -21,6 +23,12 @@ def cmd_search(config: Config) -> None:
     """Run search queries across all configured databases."""
     print(f"[SEARCH] Searching {len(config.sources)} source(s) with {len(config.queries)} query(ies)...")
     print(f"  Date range: {config.date_start} to {config.date_end}")
+
+    # Transparency: how each source handles the query and the configured
+    # filters (server-side vs applied locally vs ignored).
+    warnings = list(query_warnings(config)) + list(filter_warnings(config))
+    for w in warnings:
+        print(f"  [!] {w}")
 
     results = run_all_searches(config)
 
