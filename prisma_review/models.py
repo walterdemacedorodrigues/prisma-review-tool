@@ -35,6 +35,13 @@ class Paper:
     is_oa: Optional[bool] = None     # open-access flag (None = unknown)
     issn: Optional[str] = None       # primary ISSN of the venue, if known
 
+    # Names of the configured queries (see config.queries) that returned this
+    # paper. A single-element list at search time; on dedup the canonical paper
+    # absorbs the query names of its duplicates, so a paper found by more than
+    # one query lists them all. Lets the report attribute results per query
+    # (with overlap — queries are OR'd, so a paper may belong to several).
+    matched_queries: list[str] = field(default_factory=list)
+
     # Screening fields (populated later)
     screen_decision: Optional[str] = None  # "include", "exclude", "maybe"
     screen_reason: Optional[str] = None

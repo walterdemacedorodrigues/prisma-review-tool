@@ -45,7 +45,8 @@ def run_all_searches(config: Config) -> dict[str, list[Paper]]:
                                              config.max_results, config.openalex_email, filters)
                 elif source == "openalex":
                     papers = search_openalex(query_terms, config.date_start, config.date_end,
-                                             config.max_results, config.openalex_email, filters)
+                                             config.max_results, config.openalex_email, filters,
+                                             api_key=config.openalex_key)
                 elif source == "semantic_scholar":
                     papers = search_semantic_scholar(query_terms, config.date_start, config.date_end,
                                                      config.max_results, filters)
@@ -56,6 +57,11 @@ def run_all_searches(config: Config) -> dict[str, list[Paper]]:
                 else:
                     print(f"unknown source, skipping")
                     continue
+
+                # Stamp provenance so the report can attribute results per
+                # query. Dedup later unions these across merged duplicates.
+                for p in papers:
+                    p.matched_queries = [query_name]
 
                 results[key] = papers
                 print(f"found {len(papers)} papers")

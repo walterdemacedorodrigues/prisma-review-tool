@@ -1,9 +1,16 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Download, AlertTriangle } from "lucide-react";
+import { ClipboardList, Download, AlertTriangle, Layers } from "lucide-react";
 import GlassCard from "@/components/GlassCard";
-import { fetchStats, fetchConfig, fetchPipelineProgress } from "@/lib/api";
+import {
+  fetchStats,
+  fetchConfig,
+  fetchPipelineProgress,
+  fetchReportByQuery,
+  fetchFilterPlan,
+  type FilterMode,
+} from "@/lib/api";
 
 /**
  * Read-only pipeline report: what came in, what was filtered, and how.
@@ -16,6 +23,16 @@ export default function ReportPanel() {
   const { data: progress } = useQuery({
     queryKey: ["pipeline-progress-report"],
     queryFn: fetchPipelineProgress,
+    staleTime: 30_000,
+  });
+  const { data: byQuery } = useQuery({
+    queryKey: ["report-by-query"],
+    queryFn: fetchReportByQuery,
+    staleTime: 30_000,
+  });
+  const { data: filterPlan } = useQuery({
+    queryKey: ["report-filter-plan"],
+    queryFn: fetchFilterPlan,
     staleTime: 30_000,
   });
 
@@ -43,6 +60,27 @@ export default function ReportPanel() {
   const dateRange = config?.search?.date_range ?? {};
   const minHits = config?.screening?.rules?.min_include_hits ?? 2;
   const warnings: string[] = progress?.warnings ?? [];
+
+  const queryRows = byQuery?.queries ?? [];
+  const untaggedScreened = byQuery?.untagged?.screened ?? 0;
+  const hasQueryData = queryRows.length > 0;
+
+  const planSources = filterPlan?.sources ?? [];
+  const planRows = filterPlan?.filters ?? [];
+  const hasPlanData = !filterPlan?.empty && planRows.length > 0;
+
+  // request = filtered at the source; post = filtered locally after the call;
+  // unsupported = the source can't express it, so it's ignored there.
+  const modeLabel: Record<FilterMode, string> = {
+    request: "At source",
+    post: "After call",
+    unsupported: "Ignored",
+  };
+  const modeClass: Record<FilterMode, string> = {
+    request: "text-accent-green",
+    post: "text-accent-amber",
+    unsupported: "text-text-muted",
+  };
 
   const fmt = (n: number) => (n ?? 0).toLocaleString();
   const valueOf = (v: any): string => {
@@ -73,8 +111,34 @@ export default function ReportPanel() {
     if (eligibility && Object.keys(eligibility).length) {
       L.push(`| Eligibility → Included | ${fmt(eligibility.included ?? 0)} |`);
     }
+    if (hasQueryData) {
+      L.push("", "## Results per query (with overlap — queries are OR'd)", "");
+      L.push("| Query | Found (raw) | After dedup | Included | Maybe | Excluded |");
+      L.push("| --- | ---: | ---: | ---: | ---: | ---: |");
+      queryRows.forEach((q) =>
+        L.push(`| ${q.name} | ${fmt(q.found_raw)} | ${fmt(q.after_dedup)} | ${fmt(q.included)} | ${fmt(q.maybe)} | ${fmt(q.excluded)} |`),
+      );
+      L.push(
+        "",
+        `_A paper matched by several queries is counted under each, so column sums exceed the ${fmt(byQuery?.total_included ?? included)} distinct included._`,
+      );
+      if (untaggedScreened > 0) {
+        L.push(`_${fmt(untaggedScreened)} screened paper(s) carry no query tag (searched before per-query tracking); re-run the search to attribute them._`);
+      }
+    }
+
     L.push("", "## Source filters", "", "| Filter | Value |", "| --- | --- |");
     filterRows.forEach(([k, v]) => L.push(`| ${k} | ${v} |`));
+
+    if (hasPlanData) {
+      L.push("", "## Where each filter is applied", "");
+      L.push(`| Filter | ${planSources.join(" | ")} |`);
+      L.push(`| --- | ${planSources.map(() => "---").join(" | ")} |`);
+      planRows.forEach((row) =>
+        L.push(`| ${row.filter} | ${planSources.map((s) => modeLabel[row.by_source[s] ?? "unsupported"]).join(" | ")} |`),
+      );
+      L.push("", "_At source = sent in the request (server-side). After call = enforced locally after fetch. Ignored = source can't express it._");
+    }
     L.push("", "## Screening breakdown", "", "| Outcome | Count |", "| --- | ---: |");
     L.push(`| Excluded by exclude keyword | ${fmt(excludedByKeyword)} |`);
     L.push(`| Excluded by required-keyword gate | ${fmt(excludedGate)} |`);
@@ -155,6 +219,56 @@ export default function ReportPanel() {
             </div>
           </section>
 
+          {/* 1.5) Results per query */}
+          {hasQueryData && (
+            <section>
+              <h3 className="text-xs uppercase tracking-wide text-text-muted mb-2 flex items-center gap-1.5">
+                <Layers size={13} className="text-primary" />
+                Results per query — how many of each query reached each stage
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-text-muted">
+                      <th className="font-medium py-1.5 px-2 border-b border-border-glass">Query</th>
+                      <th className="font-medium py-1.5 px-2 border-b border-border-glass text-right">Found</th>
+                      <th className="font-medium py-1.5 px-2 border-b border-border-glass text-right">After dedup</th>
+                      <th className="font-medium py-1.5 px-2 border-b border-border-glass text-right">Included</th>
+                      <th className="font-medium py-1.5 px-2 border-b border-border-glass text-right">Maybe</th>
+                      <th className="font-medium py-1.5 px-2 border-b border-border-glass text-right">Excluded</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queryRows.map((q) => (
+                      <tr key={q.name}>
+                        <td className="py-1.5 px-2 border-b border-border-glass/40 text-text-secondary font-mono text-xs" title={q.terms}>
+                          {q.name}
+                        </td>
+                        <td className="py-1.5 px-2 border-b border-border-glass/40 text-right tabular-nums text-text-muted">{fmt(q.found_raw)}</td>
+                        <td className="py-1.5 px-2 border-b border-border-glass/40 text-right tabular-nums text-text-primary">{fmt(q.after_dedup)}</td>
+                        <td className="py-1.5 px-2 border-b border-border-glass/40 text-right tabular-nums text-accent-green">{fmt(q.included)}</td>
+                        <td className="py-1.5 px-2 border-b border-border-glass/40 text-right tabular-nums text-accent-amber">{fmt(q.maybe)}</td>
+                        <td className="py-1.5 px-2 border-b border-border-glass/40 text-right tabular-nums text-accent-red">{fmt(q.excluded)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-text-muted mt-2">
+                A paper matched by several queries is counted under each (queries are OR&apos;d), so the columns
+                sum to more than the {fmt(byQuery?.total_included ?? included)} distinct included.
+                {untaggedScreened > 0 && (
+                  <>
+                    {" "}
+                    <span className="text-accent-amber">
+                      {fmt(untaggedScreened)} paper(s) have no query tag — re-run the search to attribute them.
+                    </span>
+                  </>
+                )}
+              </p>
+            </section>
+          )}
+
           {/* 2) Source filters */}
           <section>
             <h3 className="text-xs uppercase tracking-wide text-text-muted mb-2">
@@ -178,9 +292,50 @@ export default function ReportPanel() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-text-muted mt-2">
-              See “Transparency warnings” below for where each filter is applied server-side vs locally.
-            </p>
+            {hasPlanData ? (
+              <div className="mt-4">
+                <h4 className="text-xs text-text-secondary mb-2">
+                  Where each filter is applied — at the source vs. after the call
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-text-muted">
+                        <th className="font-medium py-1.5 px-2 border-b border-border-glass">Filter</th>
+                        {planSources.map((s) => (
+                          <th key={s} className="font-medium py-1.5 px-2 border-b border-border-glass">{s}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {planRows.map((row) => (
+                        <tr key={row.filter}>
+                          <td className="py-1.5 px-2 border-b border-border-glass/40 text-text-secondary">{row.filter}</td>
+                          {planSources.map((s) => {
+                            const mode = (row.by_source[s] ?? "unsupported") as FilterMode;
+                            return (
+                              <td key={s} className={`py-1.5 px-2 border-b border-border-glass/40 text-xs ${modeClass[mode]}`}>
+                                {modeLabel[mode]}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-text-muted mt-2">
+                  <span className="text-accent-green">At source</span> = sent in the request and filtered server-side.{" "}
+                  <span className="text-accent-amber">After call</span> = the source can&apos;t express it, so it&apos;s enforced
+                  locally on the returned records.{" "}
+                  <span className="text-text-muted">Ignored</span> = unsupported by that source.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-text-muted mt-2">
+                No active source filters. See “Transparency warnings” below for query-degradation notes.
+              </p>
+            )}
           </section>
 
           {/* 3) Screening breakdown */}

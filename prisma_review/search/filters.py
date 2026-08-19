@@ -304,3 +304,26 @@ def filter_warnings(config) -> list[str]:
     for source in getattr(config, "sources", []) or []:
         out.extend(source_filter_warnings(source, f))
     return out
+
+
+def filter_plan(config) -> dict:
+    """Machine-readable companion to :func:`filter_warnings`.
+
+    Returns, for each active filter, how every enabled source applies it:
+    ``"request"`` (server-side facet), ``"post"`` (enforced locally after the
+    fetch), or ``"unsupported"`` (cannot be evaluated — ignored). Drives the
+    "filtered at source vs. after the call" table in the report UI.
+    """
+    f = SearchFilters.from_config(config)
+    sources = list(getattr(config, "sources", []) or [])
+    filters = [
+        {
+            "filter": name,
+            "by_source": {
+                s: _FILTER_SUPPORT.get(s, {}).get(key, "unsupported")
+                for s in sources
+            },
+        }
+        for key, name in _filter_labels(f)
+    ]
+    return {"sources": sources, "filters": filters, "empty": f.is_empty}

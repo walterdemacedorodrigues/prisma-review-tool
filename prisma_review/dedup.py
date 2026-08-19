@@ -59,6 +59,10 @@ def deduplicate(papers: list[Paper], doi_match: bool = True,
         for doi, group in doi_groups.items():
             if len(group) > 1:
                 canonical = _pick_canonical(group)
+                # Canonical absorbs the query provenance of the whole group.
+                canonical.matched_queries = sorted({
+                    q for g in group for q in g.matched_queries
+                })
                 for p in group:
                     if p.id != canonical.id:
                         p.duplicate_of = canonical.id
@@ -109,6 +113,9 @@ def deduplicate(papers: list[Paper], doi_match: bool = True,
                     canonical = _pick_canonical([bucket[i], bucket[j]])
                     dup = bucket[j] if canonical.id == bucket[i].id else bucket[i]
                     dup.duplicate_of = canonical.id
+                    canonical.matched_queries = sorted(
+                        set(canonical.matched_queries) | set(dup.matched_queries)
+                    )
                     removed.add(dup.id)
                     duplicate_log.append({
                         "duplicate_id": dup.id,

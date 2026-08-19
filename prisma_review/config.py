@@ -130,6 +130,10 @@ class Config:
     def openalex_email(self) -> str:
         return self._data.get("api_keys", {}).get("openalex_email", "")
 
+    @property
+    def openalex_key(self) -> str:
+        return self._data.get("api_keys", {}).get("openalex_key", "")
+
     # Search config
     @property
     def date_start(self) -> str:
