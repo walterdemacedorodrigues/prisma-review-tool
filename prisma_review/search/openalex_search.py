@@ -21,7 +21,8 @@ print = functools.partial(print, file=sys.stderr)
 
 def search_openalex(query: str, date_start: str, date_end: str,
                      max_results: int = 500, email: str = "",
-                     filters: SearchFilters | None = None) -> list[Paper]:
+                     filters: SearchFilters | None = None,
+                     api_key: str = "") -> list[Paper]:
     """Search OpenAlex and return normalized Paper objects."""
     if not HAS_PYALEX:
         print("  [!] pyalex not installed, skipping OpenAlex")
@@ -29,6 +30,8 @@ def search_openalex(query: str, date_start: str, date_end: str,
 
     if email:
         pyalex.config.email = email
+    if api_key:
+        pyalex.config.api_key = api_key
 
     # OpenAlex's `search` parameter honours Boolean operators (AND/OR/NOT),
     # quoted phrases and parentheses natively, so send the raw query through.
